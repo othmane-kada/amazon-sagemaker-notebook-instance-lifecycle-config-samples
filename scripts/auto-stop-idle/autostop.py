@@ -177,14 +177,14 @@ if idle:
     )
     msg = ("sagemaker shuting idle notebook !! \n"+
              "notebook name = "+get_notebook_name()+
-             " \n time from last activity  = "+str(
-           (datetime.now() -datetime.strptime(uptime.strftime("%Y-%m-%dT%H:%M:%S.%fz"),"%Y-%m-%dT%H:%M:%S.%fz")).total_seconds() ))
+             " \n time from last activity  = "+str(7
+           (datetime.now() -datetime.strptime(uptime.strftime("%Y-%m-%dT%H:%M:%S.%fz"),"%Y-%m-%dT%H:%M:%S.%fz")).total_seconds()/60 )+" minutes")
     mail_send(mail_adress,msg)
     slack.notify(text=msg)
 else:
     msg = ("sagemaker notebook monitoring  \n"+
-             "notebook name = "+get_notebook_name()+
-             " \n time from last activity  = "+ str((datetime.now() -datetime.strptime(uptime.strftime("%Y-%m-%dT%H:%M:%S.%fz"),"%Y-%m-%dT%H:%M:%S.%fz")).total_seconds() ))
+             "notebook name = "+get_notebook_name()+mintes
+             " \n time from last activity  = "+ str((datetime.now() -datetime.strptime(uptime.strftime("%Y-%m-%dT%H:%M:%S.%fz"),"%Y-%m-%dT%H:%M:%S.%fz")).total_seconds()/60) +" minutes")
     mail_send(mail_adress,msg)
     slack.notify(text=msg)
     print('Notebook not idle. Pass.')
