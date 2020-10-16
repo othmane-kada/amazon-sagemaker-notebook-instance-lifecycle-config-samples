@@ -1,22 +1,70 @@
-#     Copyright 2018 Amazon.com, Inc. or its affiliates. All Rights Reserved.
-#
-#     Licensed under the Apache License, Version 2.0 (the "License").
-#     You may not use this file except in compliance with the License.
-#     A copy of the License is located at
-#
-#         https://aws.amazon.com/apache-2-0/
-#
-#     or in the "license" file accompanying this file. This file is distributed
-#     on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either
-#     express or implied. See the License for the specific language governing
-#     permissions and limitations under the License.
-
 import requests
 from datetime import datetime
 import getopt, sys
 import urllib3
 import boto3
 import json
+import time
+from botocore.exceptions import ClientError
+from urllib.parse import urljoin
+from urllib.parse import urlencode
+import urllib.request as urlrequest
+import sys
+
+def mail_send(RECIPIENT,BODY_TEXT):
+    AWS_REGION = region
+    SUBJECT = "best 2 million ids for TR and EA"
+    SENDER = sender_adress    
+    CHARSET = "UTF-8"
+    client = boto3.client('ses',region_name=AWS_REGION)
+
+    try:
+        #Provide the contents of the email.
+        response = client.send_email(
+            Destination={
+                'ToAddresses': [
+                    RECIPIENT,
+                ],
+            },
+            Message={
+                'Body': {
+                    'Text': {
+                        'Charset': CHARSET,
+                        'Data': BODY_TEXT,
+                    },
+                },
+                'Subject': {
+                    'Charset': CHARSET,
+                    'Data': SUBJECT,
+                },
+            },
+            Source=SENDER
+        )
+    except ClientError as e:
+        print(e.response['Error']['Message'])
+    else:
+        print("Email sent! Message ID:"),
+        print(response['MessageId'])
+        
+class Slack():
+
+    def __init__(self, url=""):
+        self.url = url
+        self.opener = urlrequest.build_opener(urlrequest.HTTPHandler())
+
+    def notify(self, **kwargs):
+        """
+        Send message to slack API
+        """
+        return self.send(kwargs)
+
+    def send(self, payload):
+
+        payload_json = json.dumps(payload)
+        data = urlencode({"payload": payload_json})
+        req = urlrequest.Request(self.url)
+        response = self.opener.open(req, data.encode('utf-8')).read()
+        return response.decode('utf-8')
 
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
@@ -33,16 +81,20 @@ helpInfo = """-t, --time
     jupyter port
 -c --ignore-connections
     Stop notebook once idle, ignore connected users
+-s --slack slack chanel
+-m --mail mail to
+-r, --region   aws region  
+-f, --sender mail of sender
 -h, --help
     Help information
 """
-
-# Read in command-line parameters
 idle = True
 port = '8443'
+
 ignore_connections = False
 try:
-    opts, args = getopt.getopt(sys.argv[1:], "ht:p:c", ["help","time=","port=","ignore-connections"])
+    opts, args = getopt.getopt(sys.argv[1:], "ht:p:s:m:r:f:c", ["help","time=","port=","slack=",
+                                                                "mail=","region=","sender=","ignore-connections"])
     if len(opts) == 0:
         raise getopt.GetoptError("No input parameters!")
     for opt, arg in opts:
@@ -55,11 +107,19 @@ try:
             port = str(arg)
         if opt in ("-c", "--ignore-connections"):
             ignore_connections = True
+        if opt in ("-s","--slack"):
+            slack_adress = str(arg)
+            slack = Slack(url=slack_adress)
+        if opt in ("-m", "--mail"):
+            mail_adress = str(arg)    
+        if opt in ("-r", "--region"):
+            region = str(arg)     
+        if opt in ("-f", "--sender"):
+            sender_adress = str(arg)        
 except getopt.GetoptError:
     print(usageInfo)
     exit(1)
 
-# Missing configuration notification
 missingConfiguration = False
 if not time:
     print("Missing '-t' or '--time'")
@@ -84,13 +144,10 @@ def get_notebook_name():
         _logs = json.load(logs)
     return _logs['ResourceName']
 
-# This is hitting Jupyter's sessions API: https://github.com/jupyter/jupyter/wiki/Jupyter-Notebook-Server-API#Sessions-API
 response = requests.get('https://localhost:'+port+'/api/sessions', verify=False)
 data = response.json()
 if len(data) > 0:
     for notebook in data:
-        # Idleness is defined by Jupyter
-        # https://github.com/jupyter/notebook/issues/4634
         if notebook['kernel']['execution_state'] == 'idle':
             if not ignore_connections:
                 if notebook['kernel']['connections'] == 0:
@@ -118,5 +175,15 @@ if idle:
     client.stop_notebook_instance(
         NotebookInstanceName=get_notebook_name()
     )
+    msg = ("sagemaker shuting idle notebook !! \n"+
+             "notebook name = "+get_notebook_name(),
+             " \n time from last activity  = "+(datetime.now() -uptime.strftime("%Y-%m-%dT%H:%M:%S.%fz")).total_seconds() )
+    mail_send(mail_adress,msg)
+    slack.notify(text=msg)
 else:
+    msg = ("sagemaker notebook monitoring  \n"+
+             "notebook name = "+get_notebook_name(),
+             " \n time from last activity  = "+(datetime.now() -uptime.strftime("%Y-%m-%dT%H:%M:%S.%fz")).total_seconds() )
+    mail_send(mail_adress,msg)
+    slack.notify(text=msg)
     print('Notebook not idle. Pass.')
