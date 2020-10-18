@@ -130,7 +130,7 @@ if missingConfiguration:
 
 def is_idle(last_activity):
     last_activity = datetime.strptime(last_activity,"%Y-%m-%dT%H:%M:%S.%fz")
-    if (datetime.now() - last_activity).total_seconds() > time:
+    if (datetime.now() - last_activity).total_seconds()/60 > time:
         print('Notebook is idle. Last activity time = ', last_activity)
         return True
     else:
